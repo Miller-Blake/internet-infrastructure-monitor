@@ -10,32 +10,82 @@ params = {"page": 1, "per_page": 25}
 # ---
 
 # --- API request and handling ---
-response = requests.get("https://www.peeringdb.com/api/net", params=params, timeout=30)
+def get_api_data_pull(url, params=None, timeout=30):
 
-data = response.json()
+    try:
+        res = requests.get(url, params=params, timeout=timeout)
+        res.raise_for_status()
+        pulled_data = res.json()
+        return pulled_data
+    
+    except requests.exceptions.Timeout:
+        print("Timed Out")
+        return None
+
+    except requests.exceptions.ConnectionError:
+        print('Connectivity Error')
+        return None
+    
+    except requests.exceptions.HTTPError:
+        print('HTTPError')
+        return None
+    
+    except requests.exceptions.JSONDecodeError:
+        print('Error decoding the JSON file')
+        return None
 
 
-print(response.status_code)
+network_data = get_api_data_pull("https://www.peeringdb.com/api/net",params)
+ix_data = get_api_data_pull("https://www.peeringdb.com/api/ix/33")
+
+#print(response.status_code)
+#print(ix_response.status_code)
+
 # ---
 
 # --- json file exploration ---
+
 #print(data.keys())
-#print(data["data"])
-#print(len(data["data"]))
-#print(data["data"][0]) 
+#print(ix_data.keys())
+def examine_json(json):
+    print(json["data"])
+    print(len(json["data"]))
+    print(json["data"][0])
+
+#examine_json(data)
+#examine_json(ix_data)
+
 # ---
 
 
-# Loading payload into Pandas
-dataextract = data["data"]
+# --- Loading payload into Pandas ---
+network_dataextract = network_data["data"]
+ix_dataextract = ix_data["data"]
 
-df = pd.json_normalize(dataextract)
+network_df = pd.json_normalize(network_dataextract)
+ix_df = pd.json_normalize(ix_dataextract)
 
+fac_set_df = pd.json_normalize(ix_dataextract[0]["fac_set"])
+ixlan_set_df = pd.json_normalize(ix_dataextract[0]["ixlan_set"])
+
+print(fac_set_df.head())
+print(ixlan_set_df.head())
+# ---
 
 # --- dataframe exploration ---
 #print(df.shape)
 #print(df.columns)
-print(df.info())
+#print(df.info())
+#print(df.isna().sum())
+#print(df.describe())
+#print(df["notes"].head(10))
+#print(df["looking_glass"].head(10))
+#print(df[['policy_general', 'policy_locations', 'policy_url', 'policy_ratio', 'policy_contracts']].head(10))
+#print(df[["name", "asn", "ix_count", "fac_count"]].head(25))
+
+#print(ix_df.iloc[0].to_string())
+#print(ix_df["fac_set"])
+#print(ix_df["ixlan_set"])
 # ---
 
 ### --- The following are the column names - 42 Total Columns ---
