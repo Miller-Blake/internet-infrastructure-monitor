@@ -15,15 +15,13 @@ import time
 # --- API request and handling ---
 def get_api_data_pull(url, params=None, timeout=30):
 
-    
-    attempt = 0
     attempt_retry = [2, 4, 8]
+    attempt = 0
 
-        
-    for attempt, delay in enumerate(attempt_retry):
+    while attempt < 4:
 
         try:
-            res = requests.get(url, params=params, timeout= .00001)
+            res = requests.get(url, params=params, timeout= timeout)
 
             res.raise_for_status()
 
@@ -33,19 +31,46 @@ def get_api_data_pull(url, params=None, timeout=30):
         
             
         except requests.exceptions.Timeout as err:
-            print(f"Error: {err}")
-            print(f"Attempt {attempt + 1} failed. Waiting {delay} seconds.")
+           
+
+            if attempt < 3:
+                delay = attempt_retry[attempt]
+                print(f"Error: {err}")
+                print(f"Attempt {attempt + 1} failed. Retrying in {delay} seconds...")
+                time.sleep(delay)
+            attempt += 1
             continue
 
         except requests.exceptions.ConnectionError as err:
-            print(f'Error: {err}')
-            print(f"Attempt {attempt + 1} failed. Waiting {delay} seconds.")
-            return None
+            if attempt < 3:
+                delay = attempt_retry[attempt]
+                print(f"Error: {err}")
+                print(f"Attempt {attempt + 1} failed. Retrying in {delay} seconds...")
+                time.sleep(delay)
+            attempt += 1
+            continue
     
         except requests.exceptions.HTTPError as err:
-            print(f"HTTP Status Code: {err.response.status_code}")
-            print(f"Error Details: {err}")
-            return None
+            if err.response.status_code == 404:
+                return None
+
+            if err.response.status_code == 429:
+                print(f"HTTP Status Code: {err.response.status_code}")
+                print("Restarting current attempt in 60 seconds...")
+                time.sleep(60)
+                continue
+
+            if err.response.status_code in ( 500, 502, 504):
+                if attempt < 3:
+                    delay = attempt_retry[attempt]
+                    print(f"HTTP Status Code: {err.response.status_code}")
+                    print(f"Attempt {attempt + 1} failed. Retrying in {delay} seconds...")
+                    time.sleep(delay)
+                attempt += 1
+                continue
+            else:
+                print(f"HTTP Status Code: {err.response.status_code}")
+                return None
     
         except requests.exceptions.JSONDecodeError as err:
             print(f'Error: {err}')
@@ -55,21 +80,24 @@ def get_api_data_pull(url, params=None, timeout=30):
         
         return None
 
-
+# For single API call
 #network_data = get_api_data_pull("https://www.peeringdb.com/api/net",params)
 
 #requires ID after 'ix/'
 #ix_data = get_api_data_pull("https://www.peeringdb.com/api/ix/33")
 
+
+
+# --- Automated Extract of Network Data ---
+
 has_next = True
 page = 1
 network_data = []
 
-# Automated Extract of Network Data
 while has_next:
 
     params = {'page': page, "per_page":200}
-    time.sleep(2)
+    time.sleep(3)
     data_get = get_api_data_pull("https://www.peeringdb.com/api/net",params)
 
     if data_get is None:
@@ -104,9 +132,13 @@ def examine_json(json):
 
 #ix_dataextract = ix_data["data"]
 
-#Full Dataframe
+# Full Dataframe
 network_df = pd.json_normalize(network_data)
 
+
+# Exporting Data Frame
+
+network_df.to_csv('./data/network_data.csv')
 
 #Singular ID Dataframes
 #ix_df = pd.json_normalize(ix_dataextract)
